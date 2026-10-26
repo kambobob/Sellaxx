@@ -1,15 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
   <groupId>com.example</groupId>
   <artifactId>ChestSell</artifactId>
   <version>1.0.0</version>
+  <packaging>jar</packaging>
 
   <properties>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <economyshopgui.version>7.3.2</economyshopgui.version>
   </properties>
 
   <repositories>
@@ -30,12 +35,34 @@
       <version>26.2.build.7-beta</version>
       <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>com.github.MilkBowl</groupId>
       <artifactId>VaultAPI</artifactId>
       <version>1.7</version>
       <scope>provided</scope>
     </dependency>
-    <!-- EconomyShopGUI: add the dependency for your version here, scope provided -->
+
+    <!-- EconomyShopGUI jar copied into lib/ from your plugins folder -->
+    <dependency>
+      <groupId>me.gypopo</groupId>
+      <artifactId>EconomyShopGUI</artifactId>
+      <version>${economyshopgui.version}</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/lib/EconomyShopGUI-${economyshopgui.version}.jar</systemPath>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <release>21</release>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
