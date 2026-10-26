@@ -1,0 +1,38 @@
+name: Build ChestSell
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Verify EconomyShopGUI jar is present
+        run: |
+          if [ ! -f lib/EconomyShopGUI-7.3.2.jar ]; then
+            echo "Missing lib/EconomyShopGUI-7.3.2.jar. Commit it to the repo."
+            exit 1
+          fi
+
+      - name: Build with Maven
+        run: mvn -B clean package
+
+      - name: Upload plugin jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChestSell
+          path: target/ChestSell-*.jar
