@@ -2,9 +2,13 @@ package com.example.chestsell;
 
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.block.ShulkerBox;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -14,12 +18,17 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class ChestSellPlugin extends JavaPlugin implements Listener {
+import java.util.List;
+
+public final class ChestSellPlugin extends JavaPlugin implements Listener, CommandExecutor {
 
     private Economy economy;
     private ShopPrices prices;
+    private NamespacedKey sellAxeKey;
 
     @Override
     public void onEnable() {
@@ -31,7 +40,27 @@ public final class ChestSellPlugin extends JavaPlugin implements Listener {
         }
         economy = rsp.getProvider();
         prices = new ShopPrices();
+        sellAxeKey = new NamespacedKey(this, "sell_axe");
         getServer().getPluginManager().registerEvents(this, this);
+        getCommand("sellaxe").setExecutor(this);
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Only players can use this command.");
+            return true;
+        }
+        if (!player.hasPermission("chestsell.axe")) {
+            player.sendMessage("§cYou don't have permission to do that.");
+            return true;
+        }
+
+        ItemStack axe = createSellAxe();
+        var leftover = player.getInventory().addItem(axe);
+        leftover.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
+        player.sendMessage("§aYou received the Sell Axe. Right-click a chest with it to sell the chest.");
+        return true;
     }
 
     @EventHandler
@@ -39,22 +68,24 @@ public final class ChestSellPlugin extends JavaPlugin implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getHand() != EquipmentSlot.HAND) return;
 
+        Player player = event.getPlayer();
+        if (!isSellAxe(player.getInventory().getItemInMainHand())) return;
+
         Block block = event.getClickedBlock();
         if (block == null) return;
         Material type = block.getType();
         if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return;
         if (!(block.getState() instanceof Container container)) return;
-
-        Player player = event.getPlayer();
         if (!player.hasPermission("chestsell.use")) return;
 
         event.setCancelled(true); // don't open the chest, just sell
 
-        double total = sellChest(player, container.getInventory());
+        Inventory inv = container.getInventory();
+        double total = sellItems(player, inv);
 
         if (total > 0) {
             economy.depositPlayer(player, total);
-            player.sendMessage("§aSold items for §e" + economy.format(total) + "§a.");
+            player.sendMessage("§aSold chest for §e" + economy.format(total) + "§a.");
         } else {
             player.sendMessage("§7Nothing sellable in this chest.");
         }
@@ -65,10 +96,10 @@ public final class ChestSellPlugin extends JavaPlugin implements Listener {
      * If any shulker box has items in it, only the shulker contents (and loose items)
      * are sold and the shulkers stay. Otherwise the empty shulker boxes themselves are sold.
      */
-    private double sellChest(Player player, Inventory inv) {
+    private double sellItems(Player player, Inventory inv) {
         boolean hasFilledShulker = false;
-        for (ItemStack item : inv.getContents()) {
-            ShulkerBox sb = shulkerState(item);
+        for (int i = 0; i < inv.getSize(); i++) {
+            ShulkerBox sb = shulkerState(inv.getItem(i));
             if (sb != null && !sb.getInventory().isEmpty()) {
                 hasFilledShulker = true;
                 break;
@@ -82,14 +113,12 @@ public final class ChestSellPlugin extends JavaPlugin implements Listener {
 
             if (shulkerState(item) != null) {
                 if (hasFilledShulker) {
-                    // Sell what's inside, keep the shulker box
                     double earned = sellShulkerContents(player, item);
                     if (earned > 0) {
                         total += earned;
                         inv.setItem(i, item); // getItem returns a copy, so write it back
                     }
                 } else {
-                    // All shulkers are empty, so sell the box itself
                     double value = prices.value(player, item);
                     if (value > 0) {
                         total += value;
@@ -134,5 +163,20 @@ public final class ChestSellPlugin extends JavaPlugin implements Listener {
         if (item == null || !item.getType().name().endsWith("SHULKER_BOX")) return null;
         if (!(item.getItemMeta() instanceof BlockStateMeta meta)) return null;
         return meta.getBlockState() instanceof ShulkerBox sb ? sb : null;
+    }
+
+    private ItemStack createSellAxe() {
+        ItemStack axe = new ItemStack(Material.IRON_AXE);
+        ItemMeta meta = axe.getItemMeta();
+        meta.setDisplayName("§6Sell Axe");
+        meta.setLore(List.of("§7Right-click a chest to sell it"));
+        meta.getPersistentDataContainer().set(sellAxeKey, PersistentDataType.BYTE, (byte) 1);
+        axe.setItemMeta(meta);
+        return axe;
+    }
+
+    private boolean isSellAxe(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(sellAxeKey, PersistentDataType.BYTE);
     }
 }
